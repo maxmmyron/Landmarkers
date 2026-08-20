@@ -29,15 +29,28 @@
 		9F44C9262FA4C6A60071AEDF /* nearbyUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = nearbyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		9F44C9752FA537520071AEDF /* Exceptions for "nearby" folder in "nearby" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 9F44C90C2FA4C6A50071AEDF /* nearby */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		9F44C90F2FA4C6A50071AEDF /* nearby */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				9F44C9752FA537520071AEDF /* Exceptions for "nearby" folder in "nearby" target */,
+			);
 			path = nearby;
 			sourceTree = "<group>";
 		};
-		9F44C91F2FA4C6A60071AEDF /* nearbyTests */ = {
+		9F44C91F2FA4C6A60071AEDF /* tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = nearbyTests;
+			path = tests;
 			sourceTree = "<group>";
 		};
 		9F44C9292FA4C6A60071AEDF /* nearbyUITests */ = {
@@ -76,7 +89,7 @@
 			isa = PBXGroup;
 			children = (
 				9F44C90F2FA4C6A50071AEDF /* nearby */,
-				9F44C91F2FA4C6A60071AEDF /* nearbyTests */,
+				9F44C91F2FA4C6A60071AEDF /* tests */,
 				9F44C9292FA4C6A60071AEDF /* nearbyUITests */,
 				9F44C90E2FA4C6A50071AEDF /* Products */,
 			);
@@ -131,7 +144,7 @@
 				9F44C91E2FA4C6A60071AEDF /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				9F44C91F2FA4C6A60071AEDF /* nearbyTests */,
+				9F44C91F2FA4C6A60071AEDF /* tests */,
 			);
 			name = nearbyTests;
 			packageProductDependencies = (
@@ -400,6 +413,9 @@
 				DEVELOPMENT_TEAM = L96Y28P84S;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = nearby/Info.plist;
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = X;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = X;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -432,6 +448,9 @@
 				DEVELOPMENT_TEAM = L96Y28P84S;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = nearby/Info.plist;
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = X;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = X;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
