@@ -11,6 +11,7 @@ import CoreLocation
 
 protocol FetchServiceProtocol {
     func runFetchFlow(at coordinate: CLLocationCoordinate2D) async throws -> [Landmark]
+    var wikipediaClient: WikipediaClientProtocol { get }
 }
 
 @Observable
@@ -36,11 +37,11 @@ class FetchService: FetchServiceProtocol {
         var newLandmarks: [Landmark] = []
         for article in interestingArticles {
             let landmark = Landmark(
-                pageid: article.pageid,
-                title: article.title,
+                pageid: article.item.value,
+                title: article.itemLabel.value,
                 summary: "Nearby point of interest.", // Optionally fetch wiki summary here
-                latitude: article.lat,
-                longitude: article.lon
+                latitude: article.lat.value,
+                longitude: article.lon.value
             )
             newLandmarks.append(landmark)
         }
@@ -49,7 +50,7 @@ class FetchService: FetchServiceProtocol {
         return newLandmarks
     }
     
-    private func fetchNewArticles(coordinate: CLLocationCoordinate2D) async -> [WikipediaPage] {
+    private func fetchNewArticles(coordinate: CLLocationCoordinate2D) async -> [WikipediaFetchSPARQLResponse] {
         guard let articles = try? await wikipediaClient.fetchLandmarks(at: coordinate) else {
             return []
         }
@@ -59,10 +60,12 @@ class FetchService: FetchServiceProtocol {
         
         let existingIDs = Set(existingLandmarks.map { $0.pageid })
         
-        return articles.filter { !existingIDs.contains($0.pageid) }
+        return articles
+        
+//        return articles.filter { !existingIDs.contains($0.item.value) }
     }
     
-    private func filterOutUninterestingArticles(articles: [WikipediaPage]) async -> [WikipediaPage] {
+    private func filterOutUninterestingArticles(articles: [WikipediaFetchSPARQLResponse]) async -> [WikipediaFetchSPARQLResponse] {
         let vibes = await storage.getVibes()
         if vibes.isEmpty { return [] }
         

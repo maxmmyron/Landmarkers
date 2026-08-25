@@ -17,7 +17,7 @@ struct LandmarkersApp: App {
     
     init() {
         do {
-            container = try ModelContainer(for: Visit.self, VibeKeyword.self, Landmark.self)
+            container = try ModelContainer(for: Visit.self, VibeKeyword.self, Landmark.self, migrationPlan: MigrationPlan.self)
         } catch {
             fatalError("Failed to configure SwiftData container: \(error)")
         }
@@ -157,6 +157,21 @@ struct MainMapView: View {
             .mapControls {
                 MapUserLocationButton()
             }
+            
+            HStack(alignment: .center) {
+                ModeSwitcher()
+                Button {
+                    Task {
+                        try? await locationManager.fetchService.wikipediaClient.fetchLandmarks(at: CLLocationCoordinate2D(latitude: 37.7775, longitude: -122.416389))
+                    }
+                    
+                } label: {
+                    Text("Do a thing")
+                }
+            }
+                .padding(.bottom, 16)
+            
+            
         }
         .onAppear {
             Task {
@@ -182,128 +197,30 @@ struct MainMapView: View {
     }
 }
 
-struct LandmarksView: View {
-    @Query private var landmarks: [Landmark]
+struct ModeSwitcher: View {
+    @Environment(LocationManager.self) var locationManager
     
-    var body: some View {
-        VStack {
-            HStack {
-                Text("Landmarks")
-                    .font(.largeTitle.bold())
-                
-                Spacer(minLength: 0)
-            }
-            .padding(.top, 15)
-            .padding(.leading, 10)
-            
-            List {
-                ForEach(landmarks) { landmark in
-                    HStack {
-                        VStack {
-                            Text(landmark.title)
-                            Text(landmark.summary)
-                        }
-                    }
-                }
-            }
-        }
-        .padding(15)
-    }
-}
-
-struct VisitsView: View {
-    @Query private var visits: [Visit]
-    
-    var body: some View {
-        VStack {
-            HStack {
-                Text("Visits")
-                    .font(.largeTitle.bold())
-                
-                Spacer(minLength: 0)
-            }
-            .padding(.top, 15)
-            .padding(.leading, 10)
-            
-            List {
-                ForEach(visits) { visit in
-                    HStack {
-                        VStack {
-                            Text("\(visit.latitude) \(visit.longitude)")
-                        }
-                    }
-                }
-
-            }
-        }
-        .padding(15)
-    }
-}
-
-
-struct ProfileView: View {
-    var body: some View {
-        VStack {
-            HStack {
-                Text("My Story")
-                    .font(.largeTitle.bold())
-                
-                Spacer(minLength: 0)
-                
-                Button {
-                    
-                } label: {
-                    Image(systemName: "gear")
-                }
-                .padding()
-                .frame(width: 40, height: 40)
-                .background(.thinMaterial)
-                .clipShape(.capsule)
-                
-            }
-            .padding(.top, 15)
-            .padding(.leading, 10)
-        }
-        .padding(15)
-    }
-}
-
-enum TabChoice: String, CaseIterable {
-    case landmarks = "Detours"
-    case visits = "Visits"
-    case profile = "My Story"
-    
-    var symbolImage: String {
-        switch self {
-        case .landmarks: return "lizard"
-        case .visits: return "target"
-        case .profile: return "fleuron"
+    @State var toggled = false {
+        didSet {
+            locationManager.updateLocationMonitoringMode(mode: toggled ? .live : .ambient)
         }
     }
     
-    @ViewBuilder
-    func SheetView() -> some View {
-        switch self {
-        case .landmarks:
-            LandmarksView()
-        case .visits:
-            VisitsView()
-        case .profile:
-            ProfileView()
-        }
+    var body: some View {
+        Toggle("Live", isOn: $toggled)
+            .frame(maxWidth: 119)
     }
 }
-
 
 #Preview {
-    let container: ModelContainer = try! ModelContainer(for: Visit.self, VibeKeyword.self, Landmark.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    let container: ModelContainer = try! ModelContainer(for: Visit.self, VibeKeyword.self, Landmark.self, migrationPlan: MigrationPlan.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     
     let storage: StorageProtocol = Storage(modelContext: container.mainContext)
     
     let fetchService: FetchService = FetchService(storage: storage, wikipediaClient: WikipediaClient(), llmClient: LLMClient())
     let locationManager: LocationManager = LocationManager(storage: storage, fetchService: fetchService)
     
-    return ContentView()
+    ContentView()
         .environment(locationManager)
         .environment(fetchService)
         .modelContainer(container)

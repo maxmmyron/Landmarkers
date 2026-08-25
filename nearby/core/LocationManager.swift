@@ -64,6 +64,11 @@ class LocationManager: NSObject, LocationManagerProtocol {
     }
     
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        FileHandle.standardOutput.write("New active locations:".data(using: .utf8) ?? Data())
+        for location in locations {
+            FileHandle.standardOutput.write("\t- \(location)".data(using: .utf8) ?? Data())
+        }
+        
         guard let coordinate = locations.last?.coordinate else { return }
         
         // must be > 1 mi from last location and > 60 seconds since last fetch
@@ -86,6 +91,8 @@ class LocationManager: NSObject, LocationManagerProtocol {
     }
     
     func locationManager(_ manager: CLLocationManager, didVisit visit: CLVisit) {
+        FileHandle.standardOutput.write("New visit: \(visit)".data(using: .utf8) ?? Data())
+        
         // drop anything except for arrivals
         guard visit.departureDate == .distantFuture else { return }
         

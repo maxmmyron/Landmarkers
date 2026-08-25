@@ -9,10 +9,10 @@ import MapKit
 @testable import nearby
 
 class MockWikipediaClient: WikipediaClientProtocol {
-    func fetchLandmarks(at location: CLLocationCoordinate2D) async throws -> [WikipediaPage] {
+    func fetchLandmarks(at location: CLLocationCoordinate2D) async throws -> [WikipediaFetchSPARQLResponse] {
         return [
-            .init(pageid: 1, title: "New", lat: 0.0, lon: 0.0, dist: 0),
-            .init(pageid: 2, title: "New 2", lat: 0.1, lon: 0.1, dist: 1)
+            .init(item: .init("1"), itemLabel: .init("New"), lat: .init(0.0), lon: .init(0.0), sitelink: .init("")),
+            .init(item: .init("2"), itemLabel: .init("New 2"), lat: .init(0.0), lon: .init(0.0), sitelink: .init("")),
         ]
     }
 }

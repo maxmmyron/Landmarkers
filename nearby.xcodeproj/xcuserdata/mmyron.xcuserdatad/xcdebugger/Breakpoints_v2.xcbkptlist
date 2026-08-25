@@ -14,10 +14,40 @@
             filePath = "nearby/LandmarkersApp.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "298"
-            endingLineNumber = "298"
+            startingLineNumber = "215"
+            endingLineNumber = "215"
             landmarkName = "unknown"
             landmarkType = "0">
+            <Locations>
+               <Location
+                  uuid = "BB561016-7AD6-413E-9FE6-47D1351343A2 - fd0f966b612c3c2"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "nearby.LandmarksView.init() -&gt; nearby.LandmarksView"
+                  moduleName = "nearby.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///var/folders/cc/g9sk_rs51fl35871s3q8mr600000gn/T/-afa897.@__swiftmacro_6nearby13LandmarksViewV9landmarks33_AF6908AE3AAF855B405E9D165AA76873LL5QueryfMp_.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "1"
+                  endingLineNumber = "1">
+               </Location>
+               <Location
+                  uuid = "BB561016-7AD6-413E-9FE6-47D1351343A2 - 49dca643ccad6ce6"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "nearby.LandmarksView.init(_landmarks: _SwiftData_SwiftUI.Query&lt;nearby.SchemaV1.Landmark, Swift.Array&lt;nearby.SchemaV1.Landmark&gt;&gt;) -&gt; nearby.LandmarksView"
+                  moduleName = "nearby.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/mmyron/Documents/apps/nearby/nearby/LandmarkersApp.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "0"
+                  endingLineNumber = "0">
+               </Location>
+            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy

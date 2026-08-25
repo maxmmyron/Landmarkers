@@ -10,7 +10,7 @@ import MapKit
 
 @MainActor
 class MockLLMClient: LLMClientProtocol {
-    func filter(articles: [WikipediaPage], vibes: [VibeKeyword]) async throws -> [WikipediaPage] {
+    func filter(articles: [WikipediaFetchSPARQLResponse], vibes: [VibeKeyword]) async throws -> [WikipediaFetchSPARQLResponse] {
         return articles
     }
 }
