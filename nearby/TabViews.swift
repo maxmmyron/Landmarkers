@@ -68,6 +68,12 @@ struct VisitsView: View {
 
 
 struct ProfileView: View {
+    @Query var landmarks: [Landmark]
+    
+    @Environment(\.modelContext) private var context
+    
+    @State var isSheetPresented = false
+    
     var body: some View {
         VStack {
             HStack {
@@ -77,7 +83,7 @@ struct ProfileView: View {
                 Spacer(minLength: 0)
                 
                 Button {
-                    
+                    isSheetPresented = true
                 } label: {
                     Image(systemName: "gear")
                 }
@@ -90,6 +96,30 @@ struct ProfileView: View {
             .padding(.leading, 10)
         }
         .padding(15)
+        .sheet(isPresented: $isSheetPresented) {
+            Text("Settings")
+                .font(.title)
+            
+            Button(role: .destructive) {
+                Task {
+                    try context.delete(model: Landmark.self)
+                    try context.save()
+                }
+                print("Deletion successful")
+            } label: {
+                Text("Delete Landmarks")
+            }
+            
+            Button(role: .destructive) {
+                Task {
+                    try context.delete(model: VibeKeyword.self)
+                    try context.save()
+                }
+                print("Deletion successful")
+            } label: {
+                Text("Delete Vibes")
+            }
+        }
     }
 }
 

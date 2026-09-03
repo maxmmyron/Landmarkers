@@ -10,7 +10,8 @@ import SwiftData
 import CoreLocation
 
 protocol FetchServiceProtocol {
-    func runFetchFlow(at coordinate: CLLocationCoordinate2D) async throws -> [Landmark]
+    func fetchAndStoreNewLandmarks(at coordinate: CLLocationCoordinate2D) async throws -> [Landmark]
+    func fetchAndStoreVibes(from sentence: String) async throws -> [VibeKeyword]
     var wikipediaClient: WikipediaClientProtocol { get }
 }
 
@@ -18,7 +19,7 @@ protocol FetchServiceProtocol {
 class FetchService: FetchServiceProtocol {
     let storage: StorageProtocol
     let wikipediaClient: WikipediaClientProtocol
-    let llmClient: LLMClientProtocol
+    private let llmClient: LLMClientProtocol
     
     init(storage: StorageProtocol, wikipediaClient: WikipediaClientProtocol, llmClient: LLMClientProtocol) {
         self.storage = storage
@@ -27,11 +28,13 @@ class FetchService: FetchServiceProtocol {
     }
     
     @MainActor
-    func runFetchFlow(at coordinate: CLLocationCoordinate2D) async throws -> [Landmark] {
+    func fetchAndStoreNewLandmarks(at coordinate: CLLocationCoordinate2D) async throws -> [Landmark] {
         let newArticles = await fetchNewArticles(coordinate: coordinate)
+        print("fetched: \(newArticles.count)")
         guard !newArticles.isEmpty else { return [] }
         
-        let interestingArticles = await filterOutUninterestingArticles(articles: newArticles)
+        let interestingArticles = await filterToInterestingArticles(articles: newArticles)
+        print("interesting: \(interestingArticles.count)")
         guard !interestingArticles.isEmpty else { return [] }
         
         var newLandmarks: [Landmark] = []
@@ -40,8 +43,8 @@ class FetchService: FetchServiceProtocol {
                 pageid: article.item.value,
                 title: article.itemLabel.value,
                 summary: "Nearby point of interest.", // Optionally fetch wiki summary here
-                latitude: article.lat.value,
-                longitude: article.lon.value
+                latitude: Float32(article.lat.value),
+                longitude: Float32(article.lon.value)
             )
             newLandmarks.append(landmark)
         }
@@ -50,25 +53,34 @@ class FetchService: FetchServiceProtocol {
         return newLandmarks
     }
     
+    @MainActor
+    func fetchAndStoreVibes(from sentence: String) async throws -> [VibeKeyword] {
+        print("Fetching vibes from \(sentence)")
+        let vibes = (try? await llmClient.determineVibes(from: sentence)) ?? []
+        
+        try? await storage.save(vibes)
+        return vibes
+    }
+    
     private func fetchNewArticles(coordinate: CLLocationCoordinate2D) async -> [WikipediaFetchSPARQLResponse] {
         guard let articles = try? await wikipediaClient.fetchLandmarks(at: coordinate) else {
             return []
         }
         
         let existingLandmarks = await storage.getExistingLandmarks()
-        if existingLandmarks.isEmpty { return [] }
+        if existingLandmarks.isEmpty { return articles }
         
-        let existingIDs = Set(existingLandmarks.map { $0.pageid })
+        // let existingIDs = Set(existingLandmarks.map { $0.pageid })
         
         return articles
         
-//        return articles.filter { !existingIDs.contains($0.item.value) }
+        // return articles.filter { !existingIDs.contains($0.item.value) }
     }
     
-    private func filterOutUninterestingArticles(articles: [WikipediaFetchSPARQLResponse]) async -> [WikipediaFetchSPARQLResponse] {
+    private func filterToInterestingArticles(articles: [WikipediaFetchSPARQLResponse]) async -> [WikipediaFetchSPARQLResponse] {
         let vibes = await storage.getVibes()
         if vibes.isEmpty { return [] }
         
-        return (try? await llmClient.filter(articles: articles, vibes: vibes)) ?? []
+        return (try? await llmClient.filterArticles(articles, by: vibes)) ?? []
     }
 }

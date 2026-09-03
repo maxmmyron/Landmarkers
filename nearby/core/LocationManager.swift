@@ -73,14 +73,18 @@ class LocationManager: NSObject, LocationManagerProtocol {
         
         // must be > 1 mi from last location and > 60 seconds since last fetch
         if lastLocation != nil {
-            if lastLocation!.distance(from: coordinate) <= 1609.34 || lastTimestamp.timeIntervalSinceNow.magnitude <= 60 { return }
+            print("last location not nil")
+            if lastLocation!.distance(from: coordinate) <= 1609.34 || lastTimestamp.timeIntervalSinceNow.magnitude <= 60 {
+                print("not beyond 1 mi or 60s")
+                return
+            }
         }
 
         self.lastLocation = coordinate
         self.lastTimestamp = Date()
         
-        
         Task {
+            print("updating landmarks")
             let _ = await updateLandmarks(at: coordinate)
          
             // don't notify during live fetching, for now
@@ -147,6 +151,7 @@ class LocationManager: NSObject, LocationManagerProtocol {
         
         try? await storage.save([Visit(coordinate: coordinate)])
         
-        return (try? await fetchService.runFetchFlow(at: coordinate)) ?? []
+        print("fetching landmarks")
+        return (try? await fetchService.fetchAndStoreNewLandmarks(at: coordinate)) ?? []
     }
 }

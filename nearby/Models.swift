@@ -74,7 +74,7 @@ enum SchemaV2: VersionedSchema {
     static var versionIdentifier = Schema.Version(2, 0, 0)
     
     static var models: [any PersistentModel.Type] {
-        [SchemaV2.Landmark.self, SchemaV1.VibeKeyword.self, SchemaV1.Landmark.self]
+        [SchemaV2.Landmark.self, SchemaV1.VibeKeyword.self, SchemaV1.Visit.self]
     }
     
     @Model
@@ -92,33 +92,123 @@ enum SchemaV2: VersionedSchema {
             self.latitude = latitude
             self.longitude = longitude
         }
+        
+        init (from landmark: SchemaV1.Landmark) {
+            self.pageid = String(landmark.pageid)
+            self.title = landmark.title
+            self.summary = landmark.summary
+            self.latitude = landmark.latitude
+            self.longitude = landmark.longitude
+        }
+    }
+}
+
+enum SchemaV2_1: VersionedSchema {
+    static var versionIdentifier = Schema.Version(3, 0, 0)
+    
+    static var models: [any PersistentModel.Type] {
+        [SchemaV2_1.Landmark.self, SchemaV1.VibeKeyword.self, SchemaV2_1.Visit.self]
+    }
+    
+    @Model
+    class Visit {
+        var latitude: Float32 = 0.0
+        var longitude: Float32 = 0.0
+        var timestamp: Date = Date()
+        
+        init(coordinate: CLLocationCoordinate2D, timestamp: Date = .now) {
+            self.latitude = Float32(coordinate.latitude)
+            self.longitude = Float32(coordinate.longitude)
+            self.timestamp = timestamp
+        }
+        
+        init(from visit: SchemaV1.Visit) {
+            self.latitude = Float32(visit.latitude)
+            self.longitude = Float32(visit.longitude)
+            self.timestamp = visit.timestamp
+        }
+        
+        func distance(to coordinate: CLLocationCoordinate2D) -> CLLocationDistance {
+            let thisLocation = CLLocation(latitude: CLLocationDegrees(latitude), longitude: CLLocationDegrees(longitude))
+            let otherLocation = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+            return thisLocation.distance(from: otherLocation)
+        }
+    }
+
+    
+    @Model
+    class Landmark {
+        var pageid: String = ""
+        var title: String = ""
+        var summary: String = ""
+        var latitude: Float32 = 0.0
+        var longitude: Float32 = 0.0
+        
+        init(pageid: String, title: String, summary: String, latitude: Float32, longitude: Float32) {
+            self.pageid = pageid
+            self.title = title
+            self.summary = summary
+            self.latitude = latitude
+            self.longitude = longitude
+        }
+        
+        init(from landmark: SchemaV2.Landmark) {
+            self.pageid = landmark.pageid
+            self.title = landmark.title
+            self.summary = landmark.summary
+            self.latitude = Float32(landmark.latitude)
+            self.longitude = Float32(landmark.longitude)
+        }
     }
 }
 
 enum MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [SchemaV1.self, SchemaV2.self]
+        [SchemaV1.self, SchemaV2.self, SchemaV2_1.self]
     }
     
+    private static var landmarksV2 = [SchemaV2.Landmark]()
     static let migrateV1ToV2 = MigrationStage.custom(fromVersion: SchemaV1.self, toVersion: SchemaV2.self) { context in
         let landmarks = try context.fetch(FetchDescriptor<SchemaV1.Landmark>())
         
-        for landmark in landmarks {
-            context.insert(SchemaV2.Landmark(
-                pageid: String(landmark.pageid),
-                title: landmark.title,
-                summary: landmark.summary,
-                latitude: landmark.latitude,
-                longitude: landmark.longitude
-            ));
+        landmarksV2 = landmarks.map { SchemaV2.Landmark(from: $0) }
+        
+        try context.delete(model: SchemaV1.Landmark.self)
+        try context.save()
+    } didMigrate: { context in
+        for landmark in landmarksV2 {
+            context.insert(landmark)
         }
-    } didMigrate: { _ in }
+        try context.save()
+    }
+    
+    private static var landmarksV2_1 = [SchemaV2_1.Landmark]()
+    private static var visitsV2_1 = [SchemaV2_1.Visit]()
+    static let migrateV2ToV2_1 = MigrationStage.custom(fromVersion: SchemaV2.self, toVersion: SchemaV2_1.self) { context in
+        let landmarks = try context.fetch(FetchDescriptor<SchemaV2.Landmark>())
+        let visits = try context.fetch(FetchDescriptor<SchemaV1.Visit>())
+        
+        landmarksV2_1 = landmarks.map { SchemaV2_1.Landmark(from: $0) }
+        visitsV2_1 = visits.map { SchemaV2_1.Visit(from: $0) }
+        
+        try context.delete(model: SchemaV2.Landmark.self)
+        try context.delete(model: SchemaV1.Visit.self)
+        try context.save()
+    } didMigrate: { context in
+        for landmark in landmarksV2_1 {
+            context.insert(landmark)
+        }
+        for visit in visitsV2_1 {
+            context.insert(visit)
+        }
+        try context.save()
+    }
     
     static var stages: [MigrationStage] {
-        [migrateV1ToV2]
+        [migrateV1ToV2, migrateV2ToV2_1]
     }
 }
 
-typealias Visit = SchemaV1.Visit
+typealias Visit = SchemaV2_1.Visit
 typealias VibeKeyword = SchemaV1.VibeKeyword
-typealias Landmark = SchemaV1.Landmark
+typealias Landmark = SchemaV2_1.Landmark
