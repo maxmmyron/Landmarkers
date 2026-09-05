@@ -11,6 +11,7 @@ import CoreLocation
 
 protocol FetchServiceProtocol {
     func synchronizeLandmarks(within geohash: String) async throws
+    func synchronizePreferences(from sentence: String) async throws
 }
 
 @Observable
@@ -60,6 +61,24 @@ class FetchService: FetchServiceProtocol {
             }
         }
             
+        try backgroundContext.save()
+    }
+    
+    func synchronizePreferences(from sentence: String) async throws {
+        let backgroundContext = ModelContext(self.modelContainer)
+        backgroundContext.autosaveEnabled = false
+        
+        let existingPreferences = try backgroundContext.fetch(FetchDescriptor<LandmarkPreference>())
+        let preferenceSet = Set(existingPreferences.map { "\($0.type)\($0.value)" })
+        
+        let fetchedPreferences = try await apiClient.fetchPreferences(from: sentence)
+        
+        for dto in fetchedPreferences {
+            if !preferenceSet.contains("\(dto.type)\(dto.value)") {
+                backgroundContext.insert(LandmarkPreference(from: dto))
+            }
+        }
+        
         try backgroundContext.save()
     }
 }

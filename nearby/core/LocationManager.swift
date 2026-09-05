@@ -10,6 +10,7 @@ import Combine
 import SwiftData
 import CoreLocation
 import UserNotifications
+import os
 
 enum LocationMonitoringMode {
     case ambient
@@ -26,56 +27,50 @@ extension CLLocationCoordinate2D {
 
 @MainActor
 protocol LocationManagerProtocol: NSObjectProtocol, CLLocationManagerDelegate {
-    /// Runs in active mode and updates Landmarks model based on valid `CLLocation`.
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation])
-    /// Runs in passive move and updates Landmark model based on valid `CLVisit`
     func locationManager(_ manager: CLLocationManager, didVisit visit: CLVisit)
-    
     func updateLocationMonitoringMode(mode: LocationMonitoringMode)
-    
     func requestImmediateLocation() async throws -> CLLocationCoordinate2D?
-    
     func sendNotification(title: String, body: String)
 }
 
 @Observable
 class LocationManager: NSObject, LocationManagerProtocol {
-    var storage: StorageProtocol
+    let modelContainer: ModelContainer
     var fetchService: FetchServiceProtocol
-    var location: CLLocationCoordinate2D? {
-        get { lastLocation }
-    }
+    
+    var location: CLLocationCoordinate2D? { lastLocation }
     
     private let manager = CLLocationManager()
     private var lastLocation: CLLocationCoordinate2D?
     private var lastTimestamp: Date = .distantPast
+    private let logger = Logger(subsystem: "com.nearby.app", category: "LocationManager")
     
-    init(storage: StorageProtocol, fetchService: FetchServiceProtocol) {
-        self.storage = storage
+    init(modelContainer: ModelContainer, fetchService: FetchServiceProtocol) {
+        self.modelContainer = modelContainer
         self.fetchService = fetchService
         super.init()
+        
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         manager.requestAlwaysAuthorization() // Required for CLVisit
-        manager.startUpdatingLocation()
-        manager.startMonitoringVisits()
         
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        updateLocationMonitoringMode(mode: .ambient)
+        
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, err in
+            if let err {
+                Task { @MainActor in
+                    self.logger.error("Notification auth failed: \(err.localizedDescription)")
+                }
+            }
+        }
     }
     
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        FileHandle.standardOutput.write("New active locations:".data(using: .utf8) ?? Data())
-        for location in locations {
-            FileHandle.standardOutput.write("\t- \(location)".data(using: .utf8) ?? Data())
-        }
-        
         guard let coordinate = locations.last?.coordinate else { return }
         
-        // must be > 1 mi from last location and > 60 seconds since last fetch
-        if lastLocation != nil {
-            print("last location not nil")
-            if lastLocation!.distance(from: coordinate) <= 1609.34 || lastTimestamp.timeIntervalSinceNow.magnitude <= 60 {
-                print("not beyond 1 mi or 60s")
+        if let last = lastLocation {
+            if last.distance(from: coordinate) <= 1609.34 || lastTimestamp.timeIntervalSinceNow.magnitude <= 60 {
                 return
             }
         }
@@ -84,29 +79,39 @@ class LocationManager: NSObject, LocationManagerProtocol {
         self.lastTimestamp = Date()
         
         Task {
-            print("updating landmarks")
-            let _ = await updateLandmarks(at: coordinate)
-         
-            // don't notify during live fetching, for now
-//            if !newLandmarks.isEmpty {
-//                sendNotification(title: "New Landmark Nearby!", body: "Found \(newLandmarks.first!.title) based on your vibe.")
-//            }
+            do {
+                try await updateLandmarks(at: coordinate)
+            } catch {
+                logger.error("Failed to update landmarks on location change: \(error.localizedDescription)")
+            }
+            
         }
     }
     
     func locationManager(_ manager: CLLocationManager, didVisit visit: CLVisit) {
-        FileHandle.standardOutput.write("New visit: \(visit)".data(using: .utf8) ?? Data())
-        
         // drop anything except for arrivals
         guard visit.departureDate == .distantFuture else { return }
         
         Task {
-            let newLandmarks = await updateLandmarks(at: visit.coordinate)
+            let geohash = visit.coordinate.geohash(length: 6)
             
-            if !newLandmarks.isEmpty {
-                sendNotification(title: "New Landmark Nearby!", body: "Found \(newLandmarks.first!.title) based on your vibe.")
+            do {
+                try await updateLandmarks(at: visit.coordinate)
+                
+                let context = ModelContext(modelContainer)
+                let descriptor = FetchDescriptor<MapCell>(predicate: #Predicate { $0.geohash == geohash })
+                if let cell = try context.fetch(descriptor).first, let landmark = cell.landmarks.first {
+                    sendNotification(title: "New Landmark!", body: "You arrived near \(landmark.name)")
+                }
+            } catch {
+                logger.error("Failed ambient visit update in geohash \(geohash): \(error.localizedDescription)")
             }
+            
         }
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        logger.error("CoreLocation manager failed: \(error.localizedDescription)")
     }
     
     func updateLocationMonitoringMode(mode: LocationMonitoringMode) {
@@ -121,12 +126,17 @@ class LocationManager: NSObject, LocationManagerProtocol {
     }
     
     func requestImmediateLocation() async throws -> CLLocationCoordinate2D? {
-        for try await update in CLLocationUpdate.liveUpdates() {
-            if let location = update.location {
-                self.lastLocation = location.coordinate
-                self.lastTimestamp = Date()
-                return location.coordinate
+        do {
+            for try await update in CLLocationUpdate.liveUpdates() {
+                if let location = update.location {
+                    self.lastLocation = location.coordinate
+                    self.lastTimestamp = Date()
+                    return location.coordinate
+                }
             }
+        } catch {
+            logger.error("Live location stream error: \(error.localizedDescription)")
+            throw error
         }
         return nil
     }
@@ -138,20 +148,34 @@ class LocationManager: NSObject, LocationManagerProtocol {
         content.sound = .default
         
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request)
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                Task { @MainActor in
+                    self.logger.error("Failed to schedule notification: \(error.localizedDescription)")
+                }
+            }
+        }
     }
     
-    private func updateLandmarks(at coordinate: CLLocationCoordinate2D) async -> [Landmark] {
-        let existingVisits = await storage.getVisits()
-        let isWithinOneMile = existingVisits.contains { existing in
-            existing.distance(to: coordinate) <= 1609.34
-        }
+    private func updateLandmarks(at coordinate: CLLocationCoordinate2D) async throws {
+        let context = ModelContext(self.modelContainer)
+        let geohash = coordinate.geohash(length: 6)
         
-        if isWithinOneMile { return [] }
+        let shouldFetch = try await Task.detached(priority: .utility) {
+            let backgroundContext = ModelContext(self.modelContainer)
+            backgroundContext.autosaveEnabled = false
+            
+            let visits = try context.fetch(FetchDescriptor<Visit>())
+            let isWithinOneMile = visits.contains { $0.distance(to: coordinate) <= 1609.34 }
+            if isWithinOneMile { return false }
+            
+            context.insert(Visit(coordinate: coordinate))
+            try context.save()
+            return true
+        }.value
         
-        try? await storage.save([Visit(coordinate: coordinate)])
+        guard shouldFetch else { return }
         
-        print("fetching landmarks")
-        return (try? await fetchService.fetchAndStoreNewLandmarks(at: coordinate)) ?? []
+        try await fetchService.synchronizeLandmarks(within: coordinate.geohash(length: 6))
     }
 }

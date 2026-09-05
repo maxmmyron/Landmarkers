@@ -16,7 +16,7 @@ struct LandmarkersApp: App {
     @State private var locationManager: LocationManager
     
     init() {
-        let schema = Schema([Landmark.self, Visit.self, VibeKeyword.self])
+        let schema = Schema([Landmark.self, Visit.self, LandmarkPreference.self, MapCell.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
         do {
@@ -31,10 +31,9 @@ struct LandmarkersApp: App {
             }
         }
         
-        let storage = Storage(modelContext: container.mainContext)
-        let fetchService = FetchService(storage: storage, wikipediaClient: WikipediaClient(), llmClient: LLMClient())
-        
-        self.locationManager = LocationManager(storage: storage, fetchService: fetchService)
+        let apiClient = APIClient(llmClient: LLMClient())
+        let fetchService = FetchService(modelContainer: container, apiClient: apiClient)
+        self.locationManager = LocationManager(modelContainer: container, fetchService: fetchService)
         self.fetchService = fetchService
         
     }
@@ -50,10 +49,10 @@ struct LandmarkersApp: App {
 }
 
 struct ContentView: View {
-    @Query private var vibes: [VibeKeyword]
+    @Query private var preferences: [LandmarkPreference]
     
     var body: some View {
-        if vibes.isEmpty {
+        if preferences.isEmpty {
             OnboardingView()
         } else {
             MainView()
@@ -92,7 +91,12 @@ struct OnboardingView: View {
             Button("Start Exploring") {
                 Task {
                     isProcessing = true
-                    _ = try? await fetchService.fetchAndStoreVibes(from: vibeSentence)
+                    do {
+                        try await fetchService.synchronizePreferences(from: vibeSentence)
+                    } catch {
+                        print("Failed to synchronizeVibes: \(error.localizedDescription)")
+                    }
+                    isProcessing = false
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -102,7 +106,7 @@ struct OnboardingView: View {
                 Task {
                     print("fetching vibes...")
                     isProcessing = true
-                    _ = try? await fetchService.fetchAndStoreVibes(from: "Hello world test")
+                    try? await fetchService.synchronizePreferences(from: "Hello world test")
                     isProcessing = false
                 }
             }
@@ -166,11 +170,11 @@ struct MainMapView: View {
                 UserAnnotation()
                 ForEach(landmarks) { landmark in
                     let coordinate = CLLocationCoordinate2D(
-                        latitude: CLLocationDegrees(landmark.latitude),
-                        longitude: CLLocationDegrees(landmark.longitude)
+                        latitude: landmark.latitude,
+                        longitude: landmark.longitude
                     )
                     
-                    Marker(landmark.title, coordinate: coordinate)
+                    Marker(landmark.name, coordinate: coordinate)
                 }
             }
             .mapControls {
@@ -180,10 +184,7 @@ struct MainMapView: View {
             HStack(alignment: .center) {
                 ModeSwitcher()
                 Button {
-                    Task {
-                        try? await locationManager.fetchService.wikipediaClient.fetchLandmarks(at: CLLocationCoordinate2D(latitude: 37.7775, longitude: -122.416389))
-                    }
-                    
+                    runFetch(at: CLLocationCoordinate2D(latitude: 37.7775, longitude: -122.416389))
                 } label: {
                     Text("Do a thing")
                 }
@@ -210,7 +211,11 @@ struct MainMapView: View {
     private func runFetch(at coordinate: CLLocationCoordinate2D) {
         isFetching = true
         Task {
-            _ = try? await fetchService.fetchAndStoreNewLandmarks(at: coordinate)
+            do {
+                try await fetchService.synchronizeLandmarks(within: coordinate.geohash(length: 6))
+            } catch {
+                print("failed to synch landmarks in view: \(error.localizedDescription)")
+            }
             isFetching = false
         }
     }
@@ -236,7 +241,7 @@ struct ModeSwitcher: View {
 @MainActor
 struct PreviewContainer {
     static var shared: ModelContainer = {
-        let schema = Schema([ Visit.self, VibeKeyword.self, Landmark.self ])
+        let schema = Schema([Landmark.self, Visit.self, LandmarkPreference.self, MapCell.self])
         
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         
@@ -251,17 +256,9 @@ struct PreviewContainer {
 #Preview {
     let container = PreviewContainer.shared
     
-    // Initialize your dependencies using the preview container's main context
-    let storage = Storage(modelContext: container.mainContext)
-    let fetchService = FetchService(
-        storage: storage,
-        wikipediaClient: WikipediaClient(),
-        llmClient: LLMClient()
-    )
-    let locationManager = LocationManager(
-        storage: storage,
-        fetchService: fetchService
-    )
+    let apiClient = APIClient(llmClient: LLMClient())
+    let fetchService = FetchService(modelContainer: container, apiClient: apiClient)
+    let locationManager = LocationManager(modelContainer: container, fetchService: fetchService)
     
     // Explicit return is required when declaring variables inside the macro
     return ContentView()
