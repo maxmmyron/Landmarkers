@@ -32,13 +32,13 @@ class LandmarkPreference {
 
 @Model
 class Visit {
-    var latitude: Float32 = 0.0
-    var longitude: Float32 = 0.0
+    var latitude: Double = 0.0
+    var longitude: Double = 0.0
     var timestamp: Date = Date()
     
     init(coordinate: CLLocationCoordinate2D, timestamp: Date = .now) {
-        self.latitude = Float32(coordinate.latitude)
-        self.longitude = Float32(coordinate.longitude)
+        self.latitude = coordinate.latitude
+        self.longitude = coordinate.longitude
         self.timestamp = timestamp
     }
     

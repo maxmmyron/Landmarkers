@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		9F4D1BBA304473000082DE69 /* Secrets.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 9F4D1BB9304473000082DE69 /* Secrets.xcconfig */; };
+		9FF40047304E0FA80043CF11 /* secrets.env in Resources */ = {isa = PBXBuildFile; fileRef = 9FF40046304E0FA50043CF11 /* secrets.env */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -33,6 +34,7 @@
 		9F44C9262FA4C6A60071AEDF /* nearbyUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = nearbyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9F4D1BB9304473000082DE69 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		9F4D1BBB304473500082DE69 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = .gitignore; sourceTree = "<group>"; };
+		9FF40046304E0FA50043CF11 /* secrets.env */ = {isa = PBXFileReference; lastKnownFileType = text; path = secrets.env; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -94,6 +96,7 @@
 		9F44C9042FA4C6A50071AEDF = {
 			isa = PBXGroup;
 			children = (
+				9FF40046304E0FA50043CF11 /* secrets.env */,
 				9F4D1BB9304473000082DE69 /* Secrets.xcconfig */,
 				9F4D1BBB304473500082DE69 /* .gitignore */,
 				9F44C90F2FA4C6A50071AEDF /* nearby */,
@@ -216,6 +219,9 @@
 			);
 			mainGroup = 9F44C9042FA4C6A50071AEDF;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				9FF4F7F8304CD0F70043CF11 /* XCLocalSwiftPackageReference "FirebaseDataConnectGenerated/DataConnectGenerated" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9F44C90E2FA4C6A50071AEDF /* Products */;
 			projectDirPath = "";
@@ -233,6 +239,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9FF40047304E0FA80043CF11 /* secrets.env in Resources */,
 				9F4D1BBA304473000082DE69 /* Secrets.xcconfig in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -608,6 +615,13 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		9FF4F7F8304CD0F70043CF11 /* XCLocalSwiftPackageReference "FirebaseDataConnectGenerated/DataConnectGenerated" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = FirebaseDataConnectGenerated/DataConnectGenerated;
+		};
+/* End XCLocalSwiftPackageReference section */
 	};
 	rootObject = 9F44C9052FA4C6A50071AEDF /* Project object */;
 }

@@ -88,7 +88,11 @@ class APIClient: APIClientProtocol {
     }
     
     func fetchPreferences(from sentence: String) async throws -> [LandmarkPreferenceDTO] {
-        return try await llmClient.determinePreferences(from: sentence)
+        print("fetchPreferences...")
+        let response = try await llmClient.determinePreferences(from: sentence)
+        print(response.count)
+        for r in response { print("\t {type: \(r.type), value: \(r.value)} ")}
+        return response
     }
 }
 

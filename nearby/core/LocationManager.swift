@@ -8,7 +8,6 @@
 import CoreLocation
 import Combine
 import SwiftData
-import CoreLocation
 import UserNotifications
 import os
 
@@ -158,19 +157,16 @@ class LocationManager: NSObject, LocationManagerProtocol {
     }
     
     private func updateLandmarks(at coordinate: CLLocationCoordinate2D) async throws {
-        let context = ModelContext(self.modelContainer)
-        let geohash = coordinate.geohash(length: 6)
-        
         let shouldFetch = try await Task.detached(priority: .utility) {
             let backgroundContext = ModelContext(self.modelContainer)
             backgroundContext.autosaveEnabled = false
             
-            let visits = try context.fetch(FetchDescriptor<Visit>())
+            let visits = try backgroundContext.fetch(FetchDescriptor<Visit>())
             let isWithinOneMile = visits.contains { $0.distance(to: coordinate) <= 1609.34 }
             if isWithinOneMile { return false }
             
-            context.insert(Visit(coordinate: coordinate))
-            try context.save()
+            backgroundContext.insert(Visit(coordinate: coordinate))
+            try backgroundContext.save()
             return true
         }.value
         

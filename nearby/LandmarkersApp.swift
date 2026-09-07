@@ -106,7 +106,7 @@ struct OnboardingView: View {
                 Task {
                     print("fetching vibes...")
                     isProcessing = true
-                    try? await fetchService.synchronizePreferences(from: "Hello world test")
+                    try? await fetchService.synchronizePreferences(from: "Looking for a grungy, low-key spot with live indie music, craft beer, and a hidden patio or rooftop where it doesn't feel super commercialized.")
                     isProcessing = false
                 }
             }
