@@ -10,77 +10,78 @@ import SwiftData
 import CoreLocation
 
 protocol FetchServiceProtocol {
-    func fetchAndStoreNewLandmarks(at coordinate: CLLocationCoordinate2D) async throws -> [Landmark]
-    func fetchAndStoreVibes(from sentence: String) async throws -> [VibeKeyword]
-    var wikipediaClient: WikipediaClientProtocol { get }
+    func synchronizeLandmarks(within geohash: String) async throws
+    func synchronizePreferences(from sentence: String) async throws
 }
 
 @Observable
 class FetchService: FetchServiceProtocol {
-    let storage: StorageProtocol
-    let wikipediaClient: WikipediaClientProtocol
-    private let llmClient: LLMClientProtocol
+    private let NINETY_DAYS_AGO: TimeInterval = -60*60*24*90
     
-    init(storage: StorageProtocol, wikipediaClient: WikipediaClientProtocol, llmClient: LLMClientProtocol) {
-        self.storage = storage
-        self.wikipediaClient = wikipediaClient
+    let modelContainer: ModelContainer
+    let apiClient: APIClientProtocol
+    let llmClient: LLMClientProtocol
+    
+    init(modelContainer: ModelContainer, apiClient: APIClientProtocol, llmClient: LLMClientProtocol) {
+        self.modelContainer = modelContainer
+        self.apiClient = apiClient
         self.llmClient = llmClient
     }
     
-    @MainActor
-    func fetchAndStoreNewLandmarks(at coordinate: CLLocationCoordinate2D) async throws -> [Landmark] {
-        let newArticles = await fetchNewArticles(coordinate: coordinate)
-        print("fetched: \(newArticles.count)")
-        guard !newArticles.isEmpty else { return [] }
+    func synchronizeLandmarks(within geohash: String) async throws {
+        let backgroundContext = ModelContext(self.modelContainer)
+        backgroundContext.autosaveEnabled = false
         
-        let interestingArticles = await filterToInterestingArticles(articles: newArticles)
-        print("interesting: \(interestingArticles.count)")
-        guard !interestingArticles.isEmpty else { return [] }
+        // cancel fetch if there's a non-stale cell.
+        let existingCell = try backgroundContext.fetch(FetchDescriptor<MapCell>(predicate: #Predicate { $0.geohash == geohash })).first
+        let isFresh = existingCell?.dateModified.timeIntervalSinceNow ?? -Double.infinity >= NINETY_DAYS_AGO
+        if isFresh { return }
         
-        var newLandmarks: [Landmark] = []
-        for article in interestingArticles {
-            let landmark = Landmark(
-                pageid: article.item.value,
-                title: article.itemLabel.value,
-                summary: "Nearby point of interest.", // Optionally fetch wiki summary here
-                latitude: Float32(article.lat.value),
-                longitude: Float32(article.lon.value)
-            )
-            newLandmarks.append(landmark)
+        // cell is stale/nil, so update cell and set landmarks to API ground truth.
+        let fetchedLandmarks = try await apiClient.fetchLandmarks(geohash: geohash)
+        
+        
+        let cellDescriptor = FetchDescriptor(predicate: #Predicate<MapCell> { $0.geohash == geohash })
+        let cell = try backgroundContext.fetch(cellDescriptor).first ?? MapCell(geohash: geohash)
+        cell.dateModified = .now
+        backgroundContext.insert(cell)
+        
+        let fetchedLandmarkIDs = Set(fetchedLandmarks.map { $0.wikidataID })
+        for landmark in cell.landmarks where !fetchedLandmarkIDs.contains(landmark.wikidataID) {
+            backgroundContext.delete(landmark)
         }
         
-        try? await storage.save(newLandmarks)
-        return newLandmarks
+        // if the landmark already exists, update instead of create new
+        let existingLandmarkMap = Dictionary(uniqueKeysWithValues: cell.landmarks.map{ ($0.wikidataID, $0) })
+        for dto in fetchedLandmarks {
+            if let existingLandmark = existingLandmarkMap[dto.wikidataID] {
+                existingLandmark.update(from: dto)
+            } else {
+                let landmark = Landmark(from: dto)
+                landmark.cell = cell
+                backgroundContext.insert(landmark)
+            }
+        }
+            
+        try backgroundContext.save()
     }
     
-    @MainActor
-    func fetchAndStoreVibes(from sentence: String) async throws -> [VibeKeyword] {
-        print("Fetching vibes from \(sentence)")
-        let vibes = (try? await llmClient.determineVibes(from: sentence)) ?? []
+    func synchronizePreferences(from sentence: String) async throws {
+        let backgroundContext = ModelContext(self.modelContainer)
+        backgroundContext.autosaveEnabled = false
         
-        try? await storage.save(vibes)
-        return vibes
-    }
-    
-    private func fetchNewArticles(coordinate: CLLocationCoordinate2D) async -> [WikipediaFetchSPARQLResponse] {
-        guard let articles = try? await wikipediaClient.fetchLandmarks(at: coordinate) else {
-            return []
+        let existingPreferences = try backgroundContext.fetch(FetchDescriptor<LandmarkPreference>())
+        let preferenceSet = Set(existingPreferences.map { "\($0.type)\($0.value)" })
+        
+        let fetchedPreferences = try await llmClient.determinePreferences(from: sentence)
+        
+        for dto in fetchedPreferences {
+            if !preferenceSet.contains("\(dto.type)\(dto.value)") {
+                backgroundContext.insert(LandmarkPreference(from: dto))
+            }
         }
         
-        let existingLandmarks = await storage.getExistingLandmarks()
-        if existingLandmarks.isEmpty { return articles }
-        
-        // let existingIDs = Set(existingLandmarks.map { $0.pageid })
-        
-        return articles
-        
-        // return articles.filter { !existingIDs.contains($0.item.value) }
-    }
-    
-    private func filterToInterestingArticles(articles: [WikipediaFetchSPARQLResponse]) async -> [WikipediaFetchSPARQLResponse] {
-        let vibes = await storage.getVibes()
-        if vibes.isEmpty { return [] }
-        
-        return (try? await llmClient.filterArticles(articles, by: vibes)) ?? []
+        try backgroundContext.save()
     }
 }
+ 

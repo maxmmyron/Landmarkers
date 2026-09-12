@@ -9,206 +9,110 @@ import Foundation
 import SwiftData
 import CoreLocation
 
-enum SchemaV1: VersionedSchema {
-    static var versionIdentifier = Schema.Version(1, 0, 0)
-    
-    static var models: [any PersistentModel.Type] {
-        [self.Visit.self, self.VibeKeyword.self, self.Landmark.self]
+@Model
+class LandmarkPreference {
+    enum PreferenceType: String, Codable {
+        case vibe
+        case classification
     }
     
-    @Model
-    class Visit {
-        var latitude: Double = 0.0
-        var longitude: Double = 0.0
-        var timestamp: Date = Date()
-        
-        init(coordinate: CLLocationCoordinate2D, timestamp: Date = .now) {
-            self.latitude = coordinate.latitude
-            self.longitude = coordinate.longitude
-            self.timestamp = timestamp
-        }
-        
-        func distance(to coordinate: CLLocationCoordinate2D) -> CLLocationDistance {
-            let thisLocation = CLLocation(latitude: latitude, longitude: longitude)
-            let otherLocation = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
-            return thisLocation.distance(from: otherLocation)
-        }
+    var type: PreferenceType
+    var value: String
+    
+    init(type: PreferenceType, value: String) {
+        self.type = type
+        self.value = value
     }
-
-    @Model
-    class VibeKeyword {
-        var keyword: String = ""
-        
-        init(keyword: String) {
-            self.keyword = keyword
-        }
-    }
-
-    @Model
-    class Landmark {
-        var pageid: Int = 0
-        var title: String = ""
-        var summary: String = ""
-        var latitude: Double = 0.0
-        var longitude: Double = 0.0
-        
-        init(pageid: Int, title: String, summary: String, latitude: Double, longitude: Double) {
-            self.pageid = pageid
-            self.title = title
-            self.summary = summary
-            self.latitude = latitude
-            self.longitude = longitude
-        }
-        
-        init(pageid: String, title: String, summary: String, latitude: Double, longitude: Double) {
-            self.pageid = 0
-            self.title = title
-            self.summary = summary
-            self.latitude = latitude
-            self.longitude = longitude
-        }
+    
+    init(from dto: LandmarkPreferenceDTO) {
+        self.type = dto.type
+        self.value = dto.value
     }
 }
 
-enum SchemaV2: VersionedSchema {
-    static var versionIdentifier = Schema.Version(2, 0, 0)
+@Model
+class Visit {
+    var latitude: Double = 0.0
+    var longitude: Double = 0.0
+    var timestamp: Date = Date()
     
-    static var models: [any PersistentModel.Type] {
-        [SchemaV2.Landmark.self, SchemaV1.VibeKeyword.self, SchemaV1.Visit.self]
+    init(coordinate: CLLocationCoordinate2D, timestamp: Date = .now) {
+        self.latitude = coordinate.latitude
+        self.longitude = coordinate.longitude
+        self.timestamp = timestamp
     }
     
-    @Model
-    class Landmark {
-        var pageid: String = ""
-        var title: String = ""
-        var summary: String = ""
-        var latitude: Double = 0.0
-        var longitude: Double = 0.0
-        
-        init(pageid: String, title: String, summary: String, latitude: Double, longitude: Double) {
-            self.pageid = pageid
-            self.title = title
-            self.summary = summary
-            self.latitude = latitude
-            self.longitude = longitude
-        }
-        
-        init (from landmark: SchemaV1.Landmark) {
-            self.pageid = String(landmark.pageid)
-            self.title = landmark.title
-            self.summary = landmark.summary
-            self.latitude = landmark.latitude
-            self.longitude = landmark.longitude
-        }
+    func distance(to coordinate: CLLocationCoordinate2D) -> CLLocationDistance {
+        let thisLocation = CLLocation(latitude: CLLocationDegrees(latitude), longitude: CLLocationDegrees(longitude))
+        let otherLocation = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        return thisLocation.distance(from: otherLocation)
     }
 }
 
-enum SchemaV2_1: VersionedSchema {
-    static var versionIdentifier = Schema.Version(3, 0, 0)
-    
-    static var models: [any PersistentModel.Type] {
-        [SchemaV2_1.Landmark.self, SchemaV1.VibeKeyword.self, SchemaV2_1.Visit.self]
-    }
-    
-    @Model
-    class Visit {
-        var latitude: Float32 = 0.0
-        var longitude: Float32 = 0.0
-        var timestamp: Date = Date()
-        
-        init(coordinate: CLLocationCoordinate2D, timestamp: Date = .now) {
-            self.latitude = Float32(coordinate.latitude)
-            self.longitude = Float32(coordinate.longitude)
-            self.timestamp = timestamp
-        }
-        
-        init(from visit: SchemaV1.Visit) {
-            self.latitude = Float32(visit.latitude)
-            self.longitude = Float32(visit.longitude)
-            self.timestamp = visit.timestamp
-        }
-        
-        func distance(to coordinate: CLLocationCoordinate2D) -> CLLocationDistance {
-            let thisLocation = CLLocation(latitude: CLLocationDegrees(latitude), longitude: CLLocationDegrees(longitude))
-            let otherLocation = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
-            return thisLocation.distance(from: otherLocation)
-        }
-    }
 
+@Model
+class Landmark {
+    @Attribute(.unique) var wikidataID: String
+    var name: String
+    var summary: String
+    var latitude: Double
+    var longitude: Double
+    var geohash: String
+    var updatedAt: Date
     
-    @Model
-    class Landmark {
-        var pageid: String = ""
-        var title: String = ""
-        var summary: String = ""
-        var latitude: Float32 = 0.0
-        var longitude: Float32 = 0.0
-        
-        init(pageid: String, title: String, summary: String, latitude: Float32, longitude: Float32) {
-            self.pageid = pageid
-            self.title = title
-            self.summary = summary
-            self.latitude = latitude
-            self.longitude = longitude
-        }
-        
-        init(from landmark: SchemaV2.Landmark) {
-            self.pageid = landmark.pageid
-            self.title = landmark.title
-            self.summary = landmark.summary
-            self.latitude = Float32(landmark.latitude)
-            self.longitude = Float32(landmark.longitude)
-        }
+    // computed fields
+    var dateRetrieved: Date = Date.now
+
+    var cell: MapCell? = nil
+    var vibes: [String] = []
+    var classifications: [String] = []
+    
+    init(wikidataID: String, name: String, summary: String, latitude: Double, longitude: Double, geohash: String, updatedAt: Date) {
+        self.wikidataID = wikidataID
+        self.name = name
+        self.summary = summary
+        self.latitude = latitude
+        self.longitude = longitude
+        self.geohash = geohash
+        self.updatedAt = updatedAt
+    }
+    
+    init(from dto: LandmarkFetchDTO) {
+        self.wikidataID = dto.wikidataID
+        self.name = dto.name
+        self.summary = dto.summary
+        self.latitude = dto.latitude
+        self.longitude = dto.longitude
+        self.geohash = dto.geohash
+        self.updatedAt = dto.updatedAt
+    }
+    
+    func update(from dto: LandmarkFetchDTO) {
+        self.wikidataID = dto.wikidataID
+        self.name = dto.name
+        self.summary = dto.summary
+        self.latitude = dto.latitude
+        self.longitude = dto.longitude
+        self.geohash = dto.geohash
+        self.updatedAt = dto.updatedAt
+    }
+    
+    func toUpsertDTO() -> LandmarkUpsertDTO {
+        return .init(wikidataID: wikidataID, name: name, summary: summary, latitude: latitude, longitude: longitude)
     }
 }
 
-enum MigrationPlan: SchemaMigrationPlan {
-    static var schemas: [any VersionedSchema.Type] {
-        [SchemaV1.self, SchemaV2.self, SchemaV2_1.self]
-    }
+
+@Model
+class MapCell {
+    @Attribute(.unique) var geohash: String
+    var dateModified: Date
     
-    private static var landmarksV2 = [SchemaV2.Landmark]()
-    static let migrateV1ToV2 = MigrationStage.custom(fromVersion: SchemaV1.self, toVersion: SchemaV2.self) { context in
-        let landmarks = try context.fetch(FetchDescriptor<SchemaV1.Landmark>())
-        
-        landmarksV2 = landmarks.map { SchemaV2.Landmark(from: $0) }
-        
-        try context.delete(model: SchemaV1.Landmark.self)
-        try context.save()
-    } didMigrate: { context in
-        for landmark in landmarksV2 {
-            context.insert(landmark)
-        }
-        try context.save()
-    }
+    @Relationship(deleteRule: .cascade, inverse: \Landmark.cell)
+    var landmarks: [Landmark] = []
     
-    private static var landmarksV2_1 = [SchemaV2_1.Landmark]()
-    private static var visitsV2_1 = [SchemaV2_1.Visit]()
-    static let migrateV2ToV2_1 = MigrationStage.custom(fromVersion: SchemaV2.self, toVersion: SchemaV2_1.self) { context in
-        let landmarks = try context.fetch(FetchDescriptor<SchemaV2.Landmark>())
-        let visits = try context.fetch(FetchDescriptor<SchemaV1.Visit>())
-        
-        landmarksV2_1 = landmarks.map { SchemaV2_1.Landmark(from: $0) }
-        visitsV2_1 = visits.map { SchemaV2_1.Visit(from: $0) }
-        
-        try context.delete(model: SchemaV2.Landmark.self)
-        try context.delete(model: SchemaV1.Visit.self)
-        try context.save()
-    } didMigrate: { context in
-        for landmark in landmarksV2_1 {
-            context.insert(landmark)
-        }
-        for visit in visitsV2_1 {
-            context.insert(visit)
-        }
-        try context.save()
-    }
-    
-    static var stages: [MigrationStage] {
-        [migrateV1ToV2, migrateV2ToV2_1]
+    init(geohash: String, dateModified: Date = .now) {
+        self.geohash = geohash
+        self.dateModified = dateModified
     }
 }
-
-typealias Visit = SchemaV2_1.Visit
-typealias VibeKeyword = SchemaV1.VibeKeyword
-typealias Landmark = SchemaV2_1.Landmark

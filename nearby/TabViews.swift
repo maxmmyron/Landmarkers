@@ -26,7 +26,7 @@ struct LandmarksView: View {
                 ForEach(landmarks) { landmark in
                     HStack {
                         VStack {
-                            Text(landmark.title)
+                            Text(landmark.name)
                             Text(landmark.summary)
                         }
                     }
@@ -112,7 +112,7 @@ struct ProfileView: View {
             
             Button(role: .destructive) {
                 Task {
-                    try context.delete(model: VibeKeyword.self)
+                    try context.delete(model: LandmarkPreference.self)
                     try context.save()
                 }
                 print("Deletion successful")

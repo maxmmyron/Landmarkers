@@ -8,8 +8,7 @@
 import Foundation
 
 protocol LLMClientProtocol {
-    func filterArticles(_ articles: [WikipediaFetchSPARQLResponse], by vibes: [VibeKeyword]) async throws -> [WikipediaFetchSPARQLResponse]
-    func determineVibes(from: String) async throws -> [VibeKeyword]
+    func determinePreferences(from sentence: String) async throws -> [LandmarkPreferenceDTO]
 }
 
 @MainActor
@@ -21,161 +20,140 @@ class LLMClient : LLMClientProtocol {
         return key
     }
     
-    func filterArticles(_ articles: [WikipediaFetchSPARQLResponse], by vibes: [VibeKeyword]) async throws -> [WikipediaFetchSPARQLResponse] {
-        let vibeStrings = vibes.map { $0.keyword }.joined(separator: ", ")
-        _ = """
-        User vibes: \(vibeStrings)
-        Articles: \(articles.map { $0.itemLabel.value }.joined(separator: ", "))
-        Directive: Return only those which are interesting based on the user vibes. Empty results are okay. Return as a comma-separated list of titles.
-        """
+    func determinePreferences(from sentence: String) async throws -> [LandmarkPreferenceDTO] {
+        let agentMsg = """
+            You are a precise data extraction assistant for a landmark discovery app. Your task is to analyze a user's natural language input and extract landmark preferences into a structured JSON array.
+
+            ### Definitions
+            - "vibe": Atmosphere, mood, aesthetic, or sensory feelings (e.g., "cozy", "bustling", "grungy", "secluded", "romantic", "quiet").
+            - "classification": Concrete landmark types, functional categories, or architectural styles (e.g., "cafe", "historic site", "park", "rooftop bar", "art museum", "bookstore").
+
+            ### Extraction Rules
+            1. Format: Return a raw JSON array containing objects with exact keys: "type" and "value".
+            2. Constraints:
+               - "type" MUST be strictly either "vibe" or "classification".
+               - "value" MUST be a short, clean, lowercase string.
+            3. Quantity & Strictness:
+               - If the input contains clear location/landmark intent or stylistic preferences, extract and expand at least 5 "vibe" items and 5 "classification" items based on the context.
+               - Do NOT force weak matches. If the input is nonsense, irrelevant, or lacks clear preference signals, immediately return an empty array `[]`.
+
+            ### Example Outputs
+
+            Input: "I want a quiet, moody spot to read books and grab a dark coffee near old stone buildings."
+            Output:
+            [
+              {"type": "vibe", "value": "quiet"},
+              {"type": "vibe", "value": "moody"},
+              {"type": "vibe", "value": "cozy"},
+              {"type": "vibe", "value": "scholarly"},
+              {"type": "vibe", "value": "intimate"},
+              {"type": "classification", "value": "bookstore"},
+              {"type": "classification", "value": "coffee shop"},
+              {"type": "classification", "value": "library"},
+              {"type": "classification", "value": "historic site"},
+              {"type": "classification", "value": "old architecture"}
+            ]
+
+            Input: "What time does the train leave tomorrow?"
+            Output:
+            []
+            """
         
-        // TODO
+        let userMsg = """
+            Extract preferences from the following text:
+
+            "\(sentence)"
+            """
         
-        return articles
-    }
-    
-    func determineVibes(from: String) async -> [VibeKeyword] {
-        do {
-            let response = try await call(agentMsg: "Decompose the sentence into 5 main 'vibes'.", userMsg: from)
-            print("Successfully decomposed response: \(response)")
-            return [VibeKeyword(keyword: "plants")]
-        } catch {
-            print("Failed to decompose sentence into vibes: \(error.localizedDescription)")
-            return []
-        }
-    }
-    
-    private func call(agentMsg: String, userMsg: String) async throws -> ChatCompletionResponse {
-        print("Getting URL")
-        guard let url = URL(string: "https://api.deepseek.com/chat/completions") else {
-            print("ERROR: Failed to get URL")
-            throw URLError(.badURL)
-        }
+        guard let url = URL(string: "https://api.deepseek.com/chat/completions") else { throw URLError(.badURL) }
         
-        print("Generating request...")
-        let messages = [ Message(role: .system, content: agentMsg), Message(role: .user, content: userMsg) ]
-        let body = ChatCompletionRequest(model: "deepseek-v4-flash", messages: messages, thinking: .init(type: .disabled), reasoningEffort: .none, stream: false)
+        let body = ChatCompletionRequest(messages: [ .init(role: .system, content: agentMsg), .init(role: .user, content: userMsg) ])
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.httpBody = try JSONEncoder().encode(body)
-        print("Request Generated!")
         
-        print("Sending Request")
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        request.httpBody = try encoder.encode(body)
+        
         let (data, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            print(response)
-            print("Failed to get 2XX response!")
             throw URLError(.badServerResponse)
         }
-        
-        let decoded = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
-        print("successful decoding")
-        return decoded
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let apiResponse = try decoder.decode(ChatCompletionResponse<[LandmarkPreferenceDTO]>.self, from: data)
+        return try apiResponse.extractPayload(using: decoder)
     }
 }
 
 // completion request
 
-struct ChatCompletionRequest: Codable {
-    let model: String
+struct ChatCompletionRequest: Encodable {
+    var model: String = "deepseek-v4-flash"
     let messages: [Message]
-    let thinking: ThinkingConfig
-    let reasoningEffort: ReasoningEffort
-    let stream: Bool
+    var thinking: ThinkingConfig? = .disabled
+    var reasoningEffort: ReasoningEffort? = ChatCompletionRequest.ReasoningEffort.none
+    var stream: Bool = false
+    var responseFormat: ResponseFormat? = .jsonObject
     
-    enum CodingKeys: String, CodingKey {
-        case model, messages, thinking
-        case reasoningEffort = "reasoning_effort"
-        case stream
+    struct Message: Encodable {
+        let role: Role
+        let content: String
+        
+        enum Role: String, Encodable {
+            case system, user, assistant, tool
+        }
     }
-}
-
-struct Message: Codable {
-    let role: Role
-    let content: String
     
-    enum Role: String, Codable {
-        case system
-        case user
-        case assistant
+    struct ThinkingConfig: Encodable {
+        let type: ThinkingType
+        
+        enum ThinkingType: String, Encodable {
+            case enabled, disabled
+        }
+        
+        static let disabled = ThinkingConfig(type: .disabled)
+        static let enabled = ThinkingConfig(type: .enabled)
     }
-}
-
-struct ThinkingConfig: Codable {
-    let type: ThinkingType
     
-    enum ThinkingType: String, Codable {
-        case enabled
-        case disabled
+    enum ReasoningEffort: String, Encodable {
+        case none, low, medium, high
     }
-}
-
-enum ReasoningEffort: String, Codable {
-    case none
-    case low
-    case medium
-    case high
+    
+    struct ResponseFormat: Encodable {
+        let type: String
+        
+        static let jsonObject = ResponseFormat(type: "json_object")
+        static let text = ResponseFormat(type: "text")
+    }
 }
 
 // completion response
 
-struct ChatCompletionResponse: Codable {
-    let id: String
-    let object: String
-    let created: Int
-    let model: String
-    let systemFingerprint: String?
+struct ChatCompletionResponse<T: Decodable>: Decodable {
+    let id: String?
     let choices: [Choice]
-    let usage: Usage?
 
-    enum CodingKeys: String, CodingKey {
-        case id, object, created, model, choices, usage
-        case systemFingerprint = "system_fingerprint"
+    struct Choice: Decodable {
+        let message: Message
     }
-}
 
-struct Choice: Codable {
-    let index: Int
-    let message: ResponseMessage
-    let finishReason: FinishReason?
-
-    enum CodingKeys: String, CodingKey {
-        case index, message
-        case finishReason = "finish_reason"
+    struct Message: Decodable {
+        let content: String?
     }
-}
 
-struct ResponseMessage: Codable {
-    let role: Role
-    let content: String?
-}
-
-struct Usage: Codable {
-    let promptTokens: Int
-    let completionTokens: Int
-    let totalTokens: Int
-
-    enum CodingKeys: String, CodingKey {
-        case promptTokens = "prompt_tokens"
-        case completionTokens = "completion_tokens"
-        case totalTokens = "total_tokens"
+    func extractPayload(using decoder: JSONDecoder = JSONDecoder()) throws -> T {
+        guard let content = choices.first?.message.content,
+              let data = content.data(using: .utf8) else {
+            throw DecodingError.dataCorrupted(
+                .init(codingPath: [], debugDescription: "Missing or empty response content string.")
+            )
+        }
+        return try decoder.decode(T.self, from: data)
     }
-}
-
-enum Role: String, Codable {
-    case system
-    case user
-    case assistant
-    case tool
-}
-
-enum FinishReason: String, Codable {
-    case stop
-    case length
-    case contentFilter = "content_filter"
-    case toolCalls = "tool_calls"
 }

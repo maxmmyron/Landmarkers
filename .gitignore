@@ -1,1 +1,8 @@
-./Secrets.xcconfig
+Secrets.xcconfig
+secrets.env
+firebase_credentials.json
+nearby/GoogleService-Info.plist
+nearby/lib/capture.py
+nearby/lib/capture_data.sh
+nearby/lib/firebase_credentials.json
+
