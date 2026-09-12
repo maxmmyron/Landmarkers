@@ -55,49 +55,53 @@ class Landmark {
     @Attribute(.unique) var wikidataID: String
     var name: String
     var summary: String
-    
-    var cell: MapCell? = nil
     var latitude: Double
     var longitude: Double
+    var geohash: String
+    var updatedAt: Date
     
-    var dateRetrieved: Date
+    // computed fields
+    var dateRetrieved: Date = Date.now
 
-    var vibes: [String]
-    var classifications: [String]
+    var cell: MapCell? = nil
+    var vibes: [String] = []
+    var classifications: [String] = []
     
-    init(wikidataID: String, name: String, summary: String, latitude: Double, longitude: Double, dateRetrieved: Date, vibes: [String], classifications: [String]) {
+    init(wikidataID: String, name: String, summary: String, latitude: Double, longitude: Double, geohash: String, updatedAt: Date) {
         self.wikidataID = wikidataID
         self.name = name
         self.summary = summary
         self.latitude = latitude
         self.longitude = longitude
-        self.dateRetrieved = dateRetrieved
-        self.vibes = vibes
-        self.classifications = classifications
+        self.geohash = geohash
+        self.updatedAt = updatedAt
     }
     
-    init(from dto: LandmarkDTO) {
+    init(from dto: LandmarkFetchDTO) {
         self.wikidataID = dto.wikidataID
         self.name = dto.name
         self.summary = dto.summary
         self.latitude = dto.latitude
         self.longitude = dto.longitude
-        self.dateRetrieved = .now
-        self.vibes = dto.vibes
-        self.classifications = dto.classifications
+        self.geohash = dto.geohash
+        self.updatedAt = dto.updatedAt
     }
     
-    func update(from dto: LandmarkDTO) {
+    func update(from dto: LandmarkFetchDTO) {
         self.wikidataID = dto.wikidataID
         self.name = dto.name
         self.summary = dto.summary
         self.latitude = dto.latitude
         self.longitude = dto.longitude
-        self.dateRetrieved = .now
-        self.vibes = dto.vibes
-        self.classifications = dto.classifications
+        self.geohash = dto.geohash
+        self.updatedAt = dto.updatedAt
+    }
+    
+    func toUpsertDTO() -> LandmarkUpsertDTO {
+        return .init(wikidataID: wikidataID, name: name, summary: summary, latitude: latitude, longitude: longitude)
     }
 }
+
 
 @Model
 class MapCell {

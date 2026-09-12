@@ -31,8 +31,7 @@ struct LandmarkersApp: App {
             }
         }
         
-        let apiClient = APIClient(llmClient: LLMClient())
-        let fetchService = FetchService(modelContainer: container, apiClient: apiClient)
+        let fetchService = FetchService(modelContainer: container, apiClient: APIClient(), llmClient: LLMClient())
         self.locationManager = LocationManager(modelContainer: container, fetchService: fetchService)
         self.fetchService = fetchService
         
@@ -256,8 +255,7 @@ struct PreviewContainer {
 #Preview {
     let container = PreviewContainer.shared
     
-    let apiClient = APIClient(llmClient: LLMClient())
-    let fetchService = FetchService(modelContainer: container, apiClient: apiClient)
+    let fetchService = FetchService(modelContainer: container, apiClient: APIClient(), llmClient: LLMClient())
     let locationManager = LocationManager(modelContainer: container, fetchService: fetchService)
     
     // Explicit return is required when declaring variables inside the macro

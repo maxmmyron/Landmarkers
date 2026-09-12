@@ -20,10 +20,12 @@ class FetchService: FetchServiceProtocol {
     
     let modelContainer: ModelContainer
     let apiClient: APIClientProtocol
+    let llmClient: LLMClientProtocol
     
-    init(modelContainer: ModelContainer, apiClient: APIClientProtocol) {
+    init(modelContainer: ModelContainer, apiClient: APIClientProtocol, llmClient: LLMClientProtocol) {
         self.modelContainer = modelContainer
         self.apiClient = apiClient
+        self.llmClient = llmClient
     }
     
     func synchronizeLandmarks(within geohash: String) async throws {
@@ -71,7 +73,7 @@ class FetchService: FetchServiceProtocol {
         let existingPreferences = try backgroundContext.fetch(FetchDescriptor<LandmarkPreference>())
         let preferenceSet = Set(existingPreferences.map { "\($0.type)\($0.value)" })
         
-        let fetchedPreferences = try await apiClient.fetchPreferences(from: sentence)
+        let fetchedPreferences = try await llmClient.determinePreferences(from: sentence)
         
         for dto in fetchedPreferences {
             if !preferenceSet.contains("\(dto.type)\(dto.value)") {

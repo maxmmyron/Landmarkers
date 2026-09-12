@@ -6,8 +6,6 @@
 //
 
 import Foundation
-import FirebaseDataConnect
-import DataConnectGenerated
 
 protocol LLMClientProtocol {
     func determinePreferences(from sentence: String) async throws -> [LandmarkPreferenceDTO]
