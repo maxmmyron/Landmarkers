@@ -23,11 +23,6 @@ class LandmarkPreference {
         self.type = type
         self.value = value
     }
-    
-    init(from dto: LandmarkPreferenceDTO) {
-        self.type = dto.type
-        self.value = dto.value
-    }
 }
 
 @Model

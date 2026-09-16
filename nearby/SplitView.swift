@@ -10,6 +10,7 @@ import SwiftUI
 private let initial: CGFloat = 0.1
 private let middle: CGFloat = 0.5
 private let full: CGFloat = 0.9
+private let SPACER_HEIGHT: CGFloat = 26.0
 
 struct SplitView<TopContent: View, BottomContent: View>: View {
     private let detentFractions: [CGFloat] = [initial, middle, full]
@@ -36,13 +37,14 @@ struct SplitView<TopContent: View, BottomContent: View>: View {
     var body: some View {
         GeometryReader { geometry in
             let totalHeight = geometry.size.height
+            let DEFAULT_BOTTOM_HEIGHT = totalHeight * initial + SPACER_HEIGHT
             
             // Calculate actual height based on current fraction and active drag translation
-            let rawHeight = (totalHeight * currentFraction) - dragOffset
-            let targetBottomHeight = min(max(rawHeight, totalHeight * 0.1), totalHeight * 0.9)
+            let bottomHeight = (totalHeight * currentFraction) - dragOffset
+            let clampedBottomHeight = min(max(bottomHeight, totalHeight * 0.1), totalHeight * 0.9)
             
             // collapsedPercentage is [0,1] between first two detents
-            let activeFraction = targetBottomHeight / totalHeight
+            let activeFraction = clampedBottomHeight / totalHeight
             let clampedFraction = min(max(activeFraction, initial), middle)
             let collapsedPercentage = (1.0 - ((clampedFraction - initial) / (middle - initial)))
             
@@ -50,9 +52,9 @@ struct SplitView<TopContent: View, BottomContent: View>: View {
             
             ZStack(alignment: .bottom) {
                 topContent
-                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .frame(width: geometry.size.width, height: (totalHeight * full) - SPACER_HEIGHT)
                     .clipShape(RoundedRectangle(cornerRadius: 20))
-                    .offset(y: -targetBottomHeight - 26)
+                    .offset(y:  -((DEFAULT_BOTTOM_HEIGHT) / 2) - ((clampedBottomHeight + SPACER_HEIGHT) - DEFAULT_BOTTOM_HEIGHT))
                 
                 VStack (spacing: 0) {
                     DragHandle(isDragging: $isDragging)
@@ -88,14 +90,12 @@ struct SplitView<TopContent: View, BottomContent: View>: View {
                                 }
                         )
                     
-                    VStack {
-                        bottomContent
-                            .frame(width: geometry.size.width)
-                            .frame(maxHeight: .infinity)
-                    }
-                    .frame(width: geometry.size.width - (bottomBorder * 2))
-                    .frame(height: targetBottomHeight, alignment: .top)
+                    bottomContent
+                        .frame(width: geometry.size.width)
+                        .frame(maxHeight: clampedBottomHeight)
                 }
+                .frame(maxHeight: clampedBottomHeight + SPACER_HEIGHT)
+                .offset(y: (DEFAULT_BOTTOM_HEIGHT) / 2)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onChange(of: collapsedPercentage) { _, new in bottomViewOpacity = 1.0 - new }
@@ -128,11 +128,27 @@ struct DragHandle: View {
 
 #Preview {
     return SplitView(bottomViewOpacity: .constant(0.0)) {
-        Rectangle()
-            .fill(Color.red)
+        VStack() {
+            Text("Top")
+            Spacer()
+            Text("Bottom")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.red))
+//        .background(Gradient(colors: [.orange, .purple]))
+//        .backgroundStyle(.blue)
+//        Rectangle()
+//            .fill(Color.red)
+            
     } bottom: {
-        Rectangle()
-            .fill(Color.blue)
+        VStack() {
+            Text("Top")
+            Spacer()
+            Text("Bottom")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+//        .background(Gradient(colors: [.red, .blue]))
+        .background(Color(.blue))
     }
 }
 

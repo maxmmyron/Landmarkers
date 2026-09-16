@@ -8,7 +8,7 @@
 import Foundation
 
 protocol LLMClientProtocol {
-    func determinePreferences(from sentence: String) async throws -> [LandmarkPreferenceDTO]
+    func determinePreferences(from sentence: String) async throws -> LandmarkPreferenceDTO
 }
 
 @MainActor
@@ -20,7 +20,7 @@ class LLMClient : LLMClientProtocol {
         return key
     }
     
-    func determinePreferences(from sentence: String) async throws -> [LandmarkPreferenceDTO] {
+    func determinePreferences(from sentence: String) async throws -> LandmarkPreferenceDTO {
         let agentMsg = """
             You are a precise data extraction assistant for a landmark discovery app. Your task is to analyze a user's natural language input and extract landmark preferences into a structured JSON array.
 
@@ -60,10 +60,10 @@ class LLMClient : LLMClientProtocol {
             """
         
         let userMsg = """
-            Extract preferences from the following text:
-
-            "\(sentence)"
-            """
+            decompose the following into vibes and classifications: "\(sentence)"
+        """
+        
+        print("new determinePreferences w/ userMsg: \(userMsg)")
         
         guard let url = URL(string: "https://api.deepseek.com/chat/completions") else { throw URLError(.badURL) }
         
@@ -81,12 +81,19 @@ class LLMClient : LLMClientProtocol {
         let (data, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            if let res = response as? HTTPURLResponse {
+                print("Bad HTTP Response: \(res.statusCode)")
+            } else {
+                print("Recived no HTTP Response")
+            }
+            
             throw URLError(.badServerResponse)
         }
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        let apiResponse = try decoder.decode(ChatCompletionResponse<[LandmarkPreferenceDTO]>.self, from: data)
+        print("Received: \(String(bytes: data, encoding: .utf8) ?? "<UNKNOWN>")")
+        let apiResponse = try decoder.decode(ChatCompletionResponse<LandmarkPreferenceDTO>.self, from: data)
         return try apiResponse.extractPayload(using: decoder)
     }
 }

@@ -28,18 +28,20 @@ class APIClient: APIClientProtocol {
         guard let location = Geohash.decode(hash: geohash) else { return [] }
         print("Fetching landmarks for geohash: \(geohash)")
         
-        struct RPCCoords: Codable {
+        struct FetchParams: Codable {
             let user_lat: Double
             let user_lng: Double
+            let radius: Int
             
-            init(_ location: (latitude: (min: Double, max: Double), longitude: (min: Double, max: Double))) {
+            init(at location: (latitude: (min: Double, max: Double), longitude: (min: Double, max: Double)), radius: Int) {
                 self.user_lat = (location.latitude.max + location.latitude.min) / 2
                 self.user_lng = (location.longitude.max + location.longitude.min) / 2
+                self.radius = radius
             }
         }
 
         let landmarks: [LandmarkFetchDTO] = try await client
-            .rpc("get_nearest_landmarks", params: RPCCoords(location))
+            .rpc("get_nearest_landmarks", params: FetchParams(at: location, radius: 100000))
             .execute()
             .value
         
@@ -84,6 +86,6 @@ struct LandmarkUpsertDTO: Codable {
 }
 
 struct LandmarkPreferenceDTO: Codable {
-    var type: LandmarkPreference.PreferenceType
-    var value: String
+    var vibes: [String]
+    var classifications: [String]
 }

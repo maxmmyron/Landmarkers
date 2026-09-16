@@ -31,6 +31,7 @@ protocol LocationManagerProtocol: NSObjectProtocol, CLLocationManagerDelegate {
     func updateLocationMonitoringMode(mode: LocationMonitoringMode)
     func requestImmediateLocation() async throws -> CLLocationCoordinate2D?
     func sendNotification(title: String, body: String)
+    var location: CLLocationCoordinate2D { get }
 }
 
 @Observable
@@ -38,7 +39,7 @@ class LocationManager: NSObject, LocationManagerProtocol {
     let modelContainer: ModelContainer
     var fetchService: FetchServiceProtocol
     
-    var location: CLLocationCoordinate2D? { lastLocation }
+    var location: CLLocationCoordinate2D { lastLocation ?? CLLocationCoordinate2D(latitude: 0, longitude: 0) }
     
     private let manager = CLLocationManager()
     private var lastLocation: CLLocationCoordinate2D?
@@ -110,8 +111,19 @@ class LocationManager: NSObject, LocationManagerProtocol {
     }
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        logger.error("CoreLocation manager failed: \(error.localizedDescription)")
+        if let clError = error as? CLError {
+            switch clError.code {
+            case .locationUnknown:
+                print("location unknown, ignoring...")
+                return
+            case .denied:
+                manager.stopUpdatingLocation()
+            default:
+                print("Location manager failed: \(error.localizedDescription)")
+            }
+        }
     }
+
     
     func updateLocationMonitoringMode(mode: LocationMonitoringMode) {
         switch mode {

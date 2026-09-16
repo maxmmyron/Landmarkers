@@ -16,7 +16,7 @@ protocol FetchServiceProtocol {
 
 @Observable
 class FetchService: FetchServiceProtocol {
-    private let NINETY_DAYS_AGO: TimeInterval = -60*60*24*90
+    private let ninetyDaysInSeconds: TimeInterval = 60 * 60 * 24 * 90
     
     let modelContainer: ModelContainer
     let apiClient: APIClientProtocol
@@ -33,16 +33,19 @@ class FetchService: FetchServiceProtocol {
         backgroundContext.autosaveEnabled = false
         
         // cancel fetch if there's a non-stale cell.
-        let existingCell = try backgroundContext.fetch(FetchDescriptor<MapCell>(predicate: #Predicate { $0.geohash == geohash })).first
-        let isFresh = existingCell?.dateModified.timeIntervalSinceNow ?? -Double.infinity >= NINETY_DAYS_AGO
-        if isFresh { return }
+        let cellDescriptor = FetchDescriptor<MapCell>(predicate: #Predicate { $0.geohash == geohash })
+        let existingCell = try backgroundContext.fetch(cellDescriptor).first
+        if let existingCell {
+            let age = abs(existingCell.dateModified.timeIntervalSinceNow)
+            if age < ninetyDaysInSeconds && !existingCell.landmarks.isEmpty {
+                return
+            }
+        }
         
         // cell is stale/nil, so update cell and set landmarks to API ground truth.
         let fetchedLandmarks = try await apiClient.fetchLandmarks(geohash: geohash)
         
-        
-        let cellDescriptor = FetchDescriptor(predicate: #Predicate<MapCell> { $0.geohash == geohash })
-        let cell = try backgroundContext.fetch(cellDescriptor).first ?? MapCell(geohash: geohash)
+        let cell = existingCell ?? MapCell(geohash: geohash)
         cell.dateModified = .now
         backgroundContext.insert(cell)
         
@@ -71,15 +74,18 @@ class FetchService: FetchServiceProtocol {
         backgroundContext.autosaveEnabled = false
         
         let existingPreferences = try backgroundContext.fetch(FetchDescriptor<LandmarkPreference>())
-        let preferenceSet = Set(existingPreferences.map { "\($0.type)\($0.value)" })
+        let vibeSet = Set(existingPreferences.filter { $0.type == .vibe }.map { $0.value })
+        let classificationSet = Set(existingPreferences.filter { $0.type == .classification }.map { $0.value })
         
+        print("synchronizePreferences...")
         let fetchedPreferences = try await llmClient.determinePreferences(from: sentence)
+        print("preferences received!")
         
-        for dto in fetchedPreferences {
-            if !preferenceSet.contains("\(dto.type)\(dto.value)") {
-                backgroundContext.insert(LandmarkPreference(from: dto))
-            }
-        }
+        let filteredVibes = fetchedPreferences.vibes.filter { !vibeSet.contains($0) }
+        let filteredClassifications = fetchedPreferences.classifications.filter { !classificationSet.contains($0) }
+        
+        filteredVibes.forEach { backgroundContext.insert(LandmarkPreference(type: .vibe, value: $0)) }
+        filteredClassifications.forEach { backgroundContext.insert(LandmarkPreference(type: .classification, value: $0)) }
         
         try backgroundContext.save()
     }

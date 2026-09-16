@@ -59,166 +59,81 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Onboarding View
-struct OnboardingView: View {
-    @Environment(FetchService.self) private var fetchService
-    @Environment(\.modelContext) private var context
-    
-    @State private var vibeSentence = ""
-    @State private var isProcessing = false
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            Text("What's your vibe?")
-                .font(.largeTitle)
-                .bold()
-            
-            Text("Describe what kind of places you want to discover around you.")
-                .foregroundStyle(.secondary)
-            
-            TextField("e.g. I love historic architecture and quiet cafes", text: $vibeSentence)
-                .textFieldStyle(.roundedBorder)
-                .padding()
-//                .onChange(of: vibeSentence) { _, new in
-//                    let words = new.split(separator: " ")
-//                    if words.count > 25 {
-//                        // Rejoin the allowed number of words with a space
-//                        vibeSentence = words.prefix(25).joined(separator: " ")
-//                    }
+
+enum SheetTab {
+    case landmarks
+    case profile
+    case search
+}
+
+
+//// MARK: - Main Map View
+//struct MainMapView: View {
+//    @Environment(LocationManager.self) var locationManager
+//    @Environment(\.modelContext) private var context
+//    @Query private var landmarks: [Landmark]
+//    
+//    @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
+//    @State private var isFetching = false
+//    
+//    @Environment(FetchService.self) private var fetchService
+//    
+//    var body: some View {
+//        ZStack(alignment: .bottom) {
+//            Map(position: $cameraPosition) {
+//                UserAnnotation()
+//                ForEach(landmarks) { landmark in
+//                    let coordinate = CLLocationCoordinate2D(
+//                        latitude: landmark.latitude,
+//                        longitude: landmark.longitude
+//                    )
+//                    
+//                    Marker(landmark.name, coordinate: coordinate)
 //                }
-            
-            Button("Start Exploring") {
-                Task {
-                    isProcessing = true
-                    do {
-                        try await fetchService.synchronizePreferences(from: vibeSentence)
-                    } catch {
-                        print("Failed to synchronizeVibes: \(error.localizedDescription)")
-                    }
-                    isProcessing = false
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(vibeSentence.isEmpty || isProcessing)
-            
-            Button("Test") {
-                Task {
-                    print("fetching vibes...")
-                    isProcessing = true
-                    try? await fetchService.synchronizePreferences(from: "Looking for a grungy, low-key spot with live indie music, craft beer, and a hidden patio or rooftop where it doesn't feel super commercialized.")
-                    isProcessing = false
-                }
-            }
-            
-            if isProcessing {
-                ProgressView()
-            }
-        }
-        .padding()
-    }
-}
-
-struct MainView: View {
-//    @State private var selectedTab: TabChoice = .landmarks
-    
-    @State private var opacity = 0.0
-    
-    var body: some View {
-        SplitView(bottomViewOpacity: $opacity) {
-            MainMapView()
-        } bottom: {
-            TabView {
-                ForEach(TabChoice.allCases, id: \.rawValue) { tabChoice in
-                    Tab(tabChoice.rawValue, systemImage: tabChoice.symbolImage) {
-                        ScrollView(.vertical) {
-                            tabChoice.SheetView()
-                        }
-                        .toolbarBackground(.visible, for: .tabBar)
-                        .opacity(opacity)
-                    }
-                }
-            }       
-        }
-    }
-    
-    @ViewBuilder
-    func ScanButton() -> some View {
-        Button {} label: {
-            Image(systemName: "fleuron")
-        }
-        .font(.title3)
-        .padding()
-        .glassEffect(.regular, in: .capsule)
-    }
-}
-
-// MARK: - Main Map View
-struct MainMapView: View {
-    @Environment(LocationManager.self) var locationManager
-    @Environment(\.modelContext) private var context
-    @Query private var landmarks: [Landmark]
-    
-    @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
-    @State private var isFetching = false
-    
-    @Environment(FetchService.self) private var fetchService
-    
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            Map(position: $cameraPosition) {
-                UserAnnotation()
-                ForEach(landmarks) { landmark in
-                    let coordinate = CLLocationCoordinate2D(
-                        latitude: landmark.latitude,
-                        longitude: landmark.longitude
-                    )
-                    
-                    Marker(landmark.name, coordinate: coordinate)
-                }
-            }
-            .mapControls {
-                MapUserLocationButton()
-            }
-            
-            HStack(alignment: .center) {
-                ModeSwitcher()
-                Button {
-                    runFetch(at: CLLocationCoordinate2D(latitude: 37.7775, longitude: -122.416389))
-                } label: {
-                    Text("Do a thing")
-                }
-            }
-                .padding(.bottom, 16)
-            
-            
-        }
-        .onAppear {
-            Task {
-                guard let coord = try? await locationManager.requestImmediateLocation() else { return }
-                runFetch(at: coord)
-            }
-        }
-    }
-    
-    private func scanArea() {
-        // In a full implementation, you would extract the center coordinate from the current Map region.
-        // For simplicity, we fallback to user location here.
-        guard let center = locationManager.location else { return }
-        runFetch(at: center)
-    }
-    
-    private func runFetch(at coordinate: CLLocationCoordinate2D) {
-        isFetching = true
-        Task {
-            do {
-                try await fetchService.synchronizeLandmarks(within: coordinate.geohash(length: 6))
-            } catch {
-                print("failed to synch landmarks in view: \(error.localizedDescription)")
-            }
-            isFetching = false
-        }
-    }
-}
+//            }
+//            .mapControls {
+//                Spacer()
+//                MapUserLocationButton()
+//            }
+//            
+//            HStack(alignment: .center) {
+//                ModeSwitcher()
+//                Button {
+//                    runFetch(at: CLLocationCoordinate2D(latitude: 37.7775, longitude: -122.416389))
+//                } label: {
+//                    Text("Do a thing")
+//                }
+//            }
+//                .padding(.bottom, 16)
+//            
+//            
+//        }
+//        .onAppear {
+//            Task {
+//                guard let coord = try? await locationManager.requestImmediateLocation() else { return }
+//                runFetch(at: coord)
+//            }
+//        }
+//    }
+//    
+//    private func scanArea() {
+//        // In a full implementation, you would extract the center coordinate from the current Map region.
+//        // For simplicity, we fallback to user location here.
+//        runFetch(at: locationManager.location)
+//    }
+//    
+//    private func runFetch(at coordinate: CLLocationCoordinate2D) {
+//        isFetching = true
+//        Task {
+//            do {
+//                try await fetchService.synchronizeLandmarks(within: coordinate.geohash(length: 6))
+//            } catch {
+//                print("failed to synch landmarks in view: \(error.localizedDescription)")
+//            }
+//            isFetching = false
+//        }
+//    }
+//}
 
 struct ModeSwitcher: View {
     @Environment(LocationManager.self) var locationManager
